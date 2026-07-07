@@ -1233,6 +1233,13 @@ class ExtraFields
 
 		$label = $this->attributes[$extrafieldsobjectkey]['label'][$key];
 		$type = $this->attributes[$extrafieldsobjectkey]['type'][$key];
+		if ($type == 'sellist' && $mode == 1 && strpos($keyprefix, 'search_') === 0 && getDolGlobalString('MAIN_EXTRAFIELDS_USE_MULTISELECT_IN_FILTERS') && !getDolGlobalString('MAIN_EXTRAFIELDS_ENABLE_NEW_SELECT2')) {
+			// Into search filters of list pages, render the sellist combo as a multiselect (same rendering as chkbxlst)
+			// to allow searching on several values at once. SQL criteria is forged into extrafields_list_search_sql.tpl.php.
+			// Restricted to the 'search_' prefix so other mode=1 callers (like advtargetemailing.php) that expect a scalar
+			// value keep the single select, and excluded when the ajax select2 mode is on (rendering not compatible).
+			$type = 'chkbxlst';
+		}
 		$size = $this->attributes[$extrafieldsobjectkey]['size'][$key];
 		$default = $this->attributes[$extrafieldsobjectkey]['default'][$key];
 		$computed = $this->attributes[$extrafieldsobjectkey]['computed'][$key];
@@ -2031,6 +2038,7 @@ class ExtraFields
 
 						$sql .= $sqlwhere;
 						$sql .= ' ORDER BY '.implode(', ', $fields_label);
+						$sql .= ' LIMIT '.getDolGlobalInt('MAIN_EXTRAFIELDS_LIMIT_SELLIST_SQL', 1000);
 
 						dol_syslog(get_class($this).'::showInputField type=chkbxlst', LOG_DEBUG);
 
@@ -2097,6 +2105,10 @@ class ExtraFields
 							}
 							$this->db->free($resql);
 
+							if ($mode == 1 && strpos($keyprefix, 'search_') === 0 && getDolGlobalString('MAIN_EXTRAFIELDS_USE_MULTISELECT_IN_FILTERS')) {
+								// Add a "Not defined" entry (special value -2) to allow the search of records with no value set
+								$data = array(-2 => '- '.$langs->trans("NotDefined").' -') + $data;
+							}
 							$out = $form->multiselectarray($keyprefix.$key.$keysuffix, $data, $value_arr, 0, 0, '', 0, '100%');
 						} else {
 							print 'Error in request '.$sql.' '.$this->db->lasterror().'. Check setup of extra parameters.<br>';
@@ -2111,6 +2123,10 @@ class ExtraFields
 						}
 
 						$data = $form->select_all_categories($categcode, '', 'parent', 64, $InfoFieldList[6], 1, 1);
+						if ($mode == 1 && strpos($keyprefix, 'search_') === 0 && getDolGlobalString('MAIN_EXTRAFIELDS_USE_MULTISELECT_IN_FILTERS')) {
+							// Add a "Not defined" entry (special value -2) to allow the search of records with no value set
+							$data = array(-2 => '- '.$langs->trans("NotDefined").' -') + $data;
+						}
 						$out = $form->multiselectarray($keyprefix.$key.$keysuffix, $data, $value_arr, 0, 0, '', 0, '100%');
 					}
 				}
@@ -3167,12 +3183,17 @@ class ExtraFields
 					} else {
 						continue; // Value was not provided, we should not set it.
 					}
-				} elseif ($key_type == 'select') {
-					// to detect if we are in search context
+				} elseif ($key_type == 'select' || ($key_type == 'sellist' && GETPOSTISARRAY($keyprefix."options_".$key.$keysuffix))) {
+					// sellist is an array when used into a search filter rendered as a multiselect (option MAIN_EXTRAFIELDS_USE_MULTISELECT_IN_FILTERS),
+					// otherwise it is a scalar and is handled by the default case below
 					if (GETPOSTISARRAY($keyprefix."options_".$key.$keysuffix)) {
 						$value_arr = GETPOST($keyprefix."options_".$key.$keysuffix, 'array:aZ09');
 						// Make sure we get an array even if there's only one selected
 						$value_arr = (array) $value_arr;
+						// Remove values emptied by the sanitizer so the imploded criteria has no empty part (would forge a broken SQL filter)
+						$value_arr = array_filter($value_arr, static function ($v) {
+							return $v !== '';
+						});
 						$value_key = implode(',', $value_arr);
 					} else {
 						$value_key = GETPOST($keyprefix."options_".$key.$keysuffix);
