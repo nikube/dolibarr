@@ -102,6 +102,20 @@ if ($db->ok) {
 	print '<input type="password" id="pass_verif" name="pass_verif" autocomplete="new-password" minlength="8" value="'.(!empty($force_install_dolibarrpassword) ? '**********' : '').'"'.(@$force_install_noedit == 2 && !empty($force_install_dolibarrpassword) ? ' disabled' : '').'></td></tr>';
 	print '</table>';
 
+	// Demo data option
+	print '<br>';
+	print '<table cellspacing="0" cellpadding="2">';
+	print '<tr><td>';
+	print '<input type="checkbox" id="loaddemodata" name="loaddemodata" value="1"';
+	if (GETPOST('loaddemodata', 'int') || !empty($force_install_loaddemodata)) {
+		print ' checked';
+	}
+	print '>';
+	print ' <label for="loaddemodata">'.$langs->trans("InstallLoadDemoData").'</label>';
+	print '<br><span class="opacitymedium small">'.$langs->trans("InstallLoadDemoDataDesc").'</span>';
+	print '</td></tr>';
+	print '</table>';
+
 	if (GETPOSTINT("error") == 1) {
 		print '<br>';
 		print '<div class="error">'.$langs->trans("PasswordsMismatch").'</div>';

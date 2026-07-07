@@ -224,3 +224,7 @@ MigrationApiRestTokens=Migrate user's API keys to llx_oauth_token
 MigratedTokens=%s token(s) migrated
 InitAHMACKeyForBlockedLog=Initialization of the BLOCKEDLOG_HMAC_KEY constant for the new HMAC encryption of Unalterable Log module
 MigrationAlreadyDone=This migration appears to have already been completed.
+InstallLoadDemoData=Load demo data (sample company with realistic documents)
+InstallLoadDemoDataDesc=Creates a sample furniture company with customers, suppliers, products, proposals, orders, invoices, payments and more. Useful for testing and evaluation.
+DemoDataLoadedSuccessfully=Demo data has been loaded successfully.
+DemoDataLoadingError=An error occurred while loading demo data. Check the logs for details.

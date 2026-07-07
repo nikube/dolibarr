@@ -80,3 +80,6 @@ $force_install_lockinstall = true;
 
 /** @var string $force_install_module				Enable module(s) (Comma separated class names list, example: modSociete,modFournisseur,modFacture) */
 $force_install_module = '';
+
+/** @var bool $force_install_loaddemodata			Load demo data during install (sample company with realistic documents) */
+$force_install_loaddemodata = false;

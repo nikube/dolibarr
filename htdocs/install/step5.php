@@ -103,6 +103,7 @@ $langs->loadLangs(array("admin", "install"));
 $login = GETPOST('login', 'alpha') ? GETPOST('login', 'alpha') : (empty($argv[5]) ? '' : $argv[5]);
 $pass = GETPOST('pass', 'password') ? GETPOST('pass', 'password') : (empty($argv[6]) ? '' : $argv[6]);
 $pass_verif = GETPOST('pass_verif', 'password') ? GETPOST('pass_verif', 'password') : (empty($argv[7]) ? '' : $argv[7]);
+$loaddemodata = GETPOST('loaddemodata', 'int') ? 1 : 0;
 
 $success = 0;
 
@@ -142,6 +143,9 @@ if (@file_exists($forcedfile)) {
 	if ($force_install_noedit == 2) {
 		if (!empty($force_install_dolibarrlogin)) {
 			$login = $force_install_dolibarrlogin;
+		}
+		if (!empty($force_install_loaddemodata)) {
+			$loaddemodata = 1;
 		}
 	}
 }
@@ -437,25 +441,79 @@ if ($action == "set" || empty($action) || preg_match('/upgrade/i', $action)) {
 
 						$res = activateModule($modtoactivatenew, 1);
 						if (!empty($res['errors'])) {
-							print 'ERROR: failed to activateModule() file='.$file;
+							print 'ERROR: failed to activateModule() file='.$file.' ('.implode(', ', $res['errors']).')';
 						}
 					}
 					//print '<br>';
 				}
 
-				// Now delete the flag that say installation is not complete
-				dolibarr_install_syslog('step5: remove MAIN_NOT_INSTALLED const');
-				$resql = $db->query("DELETE FROM ".MAIN_DB_PREFIX."const WHERE ".$db->decrypt('name')." = 'MAIN_NOT_INSTALLED'");
-				if (!$resql) {
-					dol_print_error($db, 'Error in setup program');
+				// Load demo data if requested
+				if (!empty($loaddemodata) && $success) {
+					dolibarr_install_syslog('step5: loading demo data — activating required modules');
+					$conf->setValues($db);
+					$demoDataError = 0;
+
+					$demoModules = array(
+						'modSociete', 'modProduct', 'modService', 'modBanque', 'modStock',
+						'modPropale', 'modCommande', 'modFacture', 'modFournisseur',
+						'modProjet', 'modCategorie', 'modExpedition', 'modContrat',
+						'modFicheinter', 'modTicket', 'modExpenseReport', 'modHoliday',
+						'modDon', 'modAdherent', 'modBom', 'modMrp', 'modRecruitment',
+						'modSalaries', 'modHRM', 'modKnowledgeManagement',
+						'modPartnership', 'modSupplierProposal', 'modReception',
+						'modAccounting', 'modAgenda'
+					);
+					foreach ($demoModules as $demoMod) {
+						$file = $demoMod.'.class.php';
+						dol_include_once('/core/modules/'.$file);
+						$res = activateModule($demoMod, 1);
+						if (!empty($res['errors'])) {
+							dolibarr_install_syslog('step5: warning activating '.$demoMod.': '.implode(', ', $res['errors']));
+						}
+						$conf->setValues($db);
+					}
+					$conf->setValues($db);
+
+					require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
+					include_once DOL_DOCUMENT_ROOT.'/install/generate-demo.php';
+
+					$demoUser = new User($db);
+					$retUser = $demoUser->fetch('', $login);
+					if ($retUser <= 0) {
+						dolibarr_install_syslog('step5: failed to fetch user '.$login.' for demo data');
+						print '<div class="warning">'.$langs->trans("DemoDataLoadingError").' (user fetch failed)</div>';
+						$demoDataError = 1;
+					} else {
+						$demoUser->loadRights();
+
+						$resultDemo = generateDemoData($db, $demoUser, $langs);
+						if ($resultDemo < 0) {
+							print '<div class="warning">'.$langs->trans("DemoDataLoadingError").'</div>';
+							$demoDataError = 1;
+						} else {
+							print $langs->trans("DemoDataLoadedSuccessfully").'<br>';
+						}
+					}
 				}
 
-				// May fail if parameter already defined
-				dolibarr_install_syslog('step5: set the default language');
-				$resql = $db->query("INSERT INTO ".MAIN_DB_PREFIX."const(name,value,type,visible,note,entity) VALUES (".$db->encrypt('MAIN_LANG_DEFAULT').", ".$db->encrypt($setuplang).", 'chaine', 0, 'Default language', 1)");
-				//if (! $resql) dol_print_error($db,'Error in setup program');
+				if (!empty($demoDataError)) {
+					$db->rollback();
+					$success = 0;
+				} else {
+					// Now delete the flag that say installation is not complete
+					dolibarr_install_syslog('step5: remove MAIN_NOT_INSTALLED const');
+					$resql = $db->query("DELETE FROM ".MAIN_DB_PREFIX."const WHERE ".$db->decrypt('name')." = 'MAIN_NOT_INSTALLED'");
+					if (!$resql) {
+						dol_print_error($db, 'Error in setup program');
+					}
 
-				$db->commit();
+					// May fail if parameter already defined
+					dolibarr_install_syslog('step5: set the default language');
+					$resql = $db->query("INSERT INTO ".MAIN_DB_PREFIX."const(name,value,type,visible,note,entity) VALUES (".$db->encrypt('MAIN_LANG_DEFAULT').", ".$db->encrypt($setuplang).", 'chaine', 0, 'Default language', 1)");
+					//if (! $resql) dol_print_error($db,'Error in setup program');
+
+					$db->commit();
+				}
 			}
 		} else {
 			print $langs->trans("ErrorFailedToConnect")."<br>";
