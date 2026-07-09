@@ -617,6 +617,7 @@ if ($action == "transfert_stock" && $permissiontoadd && !$cancel) {
 // reverse movement of stock
 if (!$error && $action == 'confirm_reverse' && $confirm == "yes" && $permissiontoadd) {
 	$toselect = array_map('intval', $toselect);
+	$error = 0;
 
 	$sql = "SELECT rowid, label, inventorycode, datem";
 	$sql .= " FROM ".MAIN_DB_PREFIX."stock_mouvement";
